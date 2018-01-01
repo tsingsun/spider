@@ -7,7 +7,9 @@
  */
 
 namespace tsingsun\spider\queue;
+use tsingsun\spider\RequestItem;
 use yii\base\Component;
+use yii\db\Exception;
 
 /**
  * 数据队列,方便于开发与调试,仅限于非守护模式
@@ -42,26 +44,28 @@ class ArrayQueue extends Component implements QueueInterface
         $this->globalData['spider'] = [];
     }
 
-    public function add($url = '',$options = [])
+    public function add($requestItem)
     {
+        if(!$requestItem){
+            throw new Exception('queue item is not empty');
+        }
+
         if ($this->maxQueueSize != 0 && $this->count() >= $this->maxQueueSize) {
             return;
         }
 
-        $queue = [
-            'url' => $url,
-            'options' => $options,
-        ];
-
-        if ($this->isQueued($queue)) {
+        if ($this->isQueued($requestItem)) {
             return;
         }
-        array_push($this->globalData[$this->key],$url);
+
+        $queue = json_encode($requestItem);
+
+        array_push($this->globalData[$this->key],$queue);
     }
 
     public function queued($queue)
     {
-        array_push($this->globalData[$this->queuedKey], serialize($queue));
+        array_push($this->globalData[$this->queuedKey], json_encode($queue));
     }
 
     public function next()
@@ -74,9 +78,10 @@ class ArrayQueue extends Component implements QueueInterface
 
         if ($this->isQueued($queue)) {
             return $this->next();
-        } else {
-            return $queue;
+        } elseif($queue) {
+            return new RequestItem(json_decode($queue,true));
         }
+        return null;
     }
 
     public function count()
@@ -89,9 +94,9 @@ class ArrayQueue extends Component implements QueueInterface
         return count($this->globalData[$this->queuedKey]);
     }
 
-    public function isQueued($queue)
+    public function isQueued($requestItem)
     {
-        return in_array(serialize($queue), $this->globalData[$this->queuedKey]);
+        return in_array(json_encode($requestItem), $this->globalData[$this->queuedKey]);
     }
 
     public function clean()

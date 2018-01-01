@@ -1,6 +1,7 @@
 <?php
 namespace tsingsun\spider\queue;
 
+use tsingsun\spider\RequestItem;
 use yii\base\Component;
 use yii\di\Instance;
 use yii\redis\Connection;
@@ -54,20 +55,21 @@ class RedisQueue extends Component implements QueueInterface
         return $this->redis;
     }
 
-    public function add($url = '', $options = [])
+    public function add($requestItem)
     {
+        if(!$requestItem){
+            throw new \Exception('queue item is not empty');
+        }
+
         if ($this->maxQueueSize != 0 && $this->count() >= $this->maxQueueSize) {
             return;
         }
 
-        $queue = serialize([
-            'url' => $url,
-            'options' => $options,
-        ]);
-
-        if ($this->isQueued($queue)) {
+        if ($this->isQueued($requestItem)) {
             return;
         }
+
+        $queue = json_encode($requestItem);
 
         $this->getInstance()->rPush($this->key, $queue);
     }
@@ -82,9 +84,10 @@ class RedisQueue extends Component implements QueueInterface
 
         if ($this->isQueued($queue)) {
             return $this->next();
-        } else {
-            return unserialize($queue);
+        } elseif($queue) {
+            return new RequestItem(json_decode($queue,true));
         }
+        return null;
     }
 
     public function count()
@@ -95,18 +98,18 @@ class RedisQueue extends Component implements QueueInterface
     public function queued($queue)
     {
         if ($this->bloomFilter) {
-            $this->bfAdd(md5(serialize($queue)));
+            $this->bfAdd(md5(json_encode($queue)));
         } else {
-            $this->getInstance()->sadd($this->queuedKey, serialize($queue));
+            $this->getInstance()->sadd($this->queuedKey, json_encode($queue));
         }
     }
 
     public function isQueued($queue)
     {
         if ($this->bloomFilter) {
-            return $this->bfHas(md5($queue));
+            return $this->bfHas(md5(json_encode($queue)));
         } else {
-            return $this->getInstance()->sismember($this->queuedKey, $queue);
+            return $this->getInstance()->sismember($this->queuedKey, json_encode($queue));
         }
     }
 

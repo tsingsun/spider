@@ -22,8 +22,8 @@ $configs = array(
 );
 //Yii 组件配置
 $option = [
-    'id' => 'qiushibaike',
-    'name' => '糗事百科',
+    'id' => 'sinanews',
+    'name' => '新浪科技',
     'basePath' => __DIR__,
     'daemonize' => true,
     'components' => [

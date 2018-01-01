@@ -28,6 +28,7 @@ use yii\helpers\StringHelper;
  *      - children 子节点数组,是node[]类型
  *      - sourceType 表示field的值通过数据源方式获取
  *      - attached_url 默认当前页面,
+ *      - default 当前页面默认值,支持:url
  * @package tsingsun\spider\parser
  */
 class Parser extends Behavior
@@ -56,7 +57,7 @@ class Parser extends Behavior
     {
         /** @var Spider $spider */
         $spider = $event->sender;
-        if(preg_match($this->contentUrlFilter,$spider->url)){
+        if(preg_match($this->contentUrlFilter,$spider->current->url)){
             $this->crawler = new Crawler();
             $this->crawler->addHtmlContent($spider->page);
             $this->data = $this->getData($this->fields);
@@ -80,6 +81,11 @@ class Parser extends Behavior
             $repeated = isset($field['repeated']) && $field['repeated'] ? true : false;
             // 当前field抽取到的内容是否必须有值
             $required = isset($field['required']) && $field['required'] ? true : false;
+
+            if(isset($field['default'])){
+                $data[$key] = $this->parseDefault($field['default']);
+                continue;
+            }
 
             if(isset($field['sourceType']) && $field['sourceType']=='attached_url'){
                 // 取出上个field的内容作为连接, 内容分页是不进队列直接下载网页的
@@ -123,5 +129,18 @@ class Parser extends Behavior
             $key = substr($matches[0],1,strlen($matches[0])-1);
             return $data[$key];
         },$url);
+    }
+
+    private function parseDefault($key)
+    {
+        $value = null;
+        switch ($key){
+            case 'url':
+                $value = $this->owner->current->url;
+                break;
+            default:
+                break;
+        }
+        return $value;
     }
 }

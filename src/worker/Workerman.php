@@ -60,6 +60,9 @@ class Workerman
     {
         /** @var Spider $spider */
         $spider = \Yii::$app->getSpider();
-        $spider->trigger(Spider::EVENT_START_WORKER);
+        Timer::delAll();
+        $spider->trigger(Spider::EVENT_WORKER_STOP);
+        \Yii::getLogger()->flush(true);
+        exit;
     }
 }
