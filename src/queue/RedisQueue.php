@@ -98,18 +98,18 @@ class RedisQueue extends Component implements QueueInterface
     public function queued($queue)
     {
         if ($this->bloomFilter) {
-            $this->bfAdd(md5(json_encode($queue)));
+            $this->bfAdd(md5($queue->url));
         } else {
-            $this->getInstance()->sadd($this->queuedKey, json_encode($queue));
+            $this->getInstance()->sadd($this->queuedKey, $queue->url);
         }
     }
 
     public function isQueued($queue)
     {
         if ($this->bloomFilter) {
-            return $this->bfHas(md5(json_encode($queue)));
+            return $this->bfHas(md5($queue->url));
         } else {
-            return $this->getInstance()->sismember($this->queuedKey, json_encode($queue));
+            return $this->getInstance()->sismember($this->queuedKey, $queue->url);
         }
     }
 

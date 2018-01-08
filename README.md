@@ -6,12 +6,12 @@ yii2-spider基于Yii2框架的爬虫应用,做为爬虫，经常需要用到各�
 ## 特点
 
 - 支持守护进程与普通两种模式（守护进程模式只支持 Linux 服务器）
-- 默认使用 guzzle 进行爬取
 - 支持分布式
-- 支持内存、Redis 等多种队列方式
+- 支持array(调试)、Redis 等多种队列方式
 - 支持自定义URI过滤
 - 支持广度优先和深度优先两种爬取方式
-- 爬取网页分为多步，每步均支持自定义动作（如添加代理、修改 user-agent 等）
+- 基于事件的流程处理
+- 内置数据解析与导出
 
 ## 安装
 
@@ -23,10 +23,7 @@ $ composer require tsingsun/yii2-spider
 
 ## 快速开始
 ```php
-defined('YII_DEBUG') or define('YII_DEBUG', true);
-defined('YII_ENV') or define('YII_ENV', 'test');
 require(__DIR__ . '/../vendor/autoload.php');
-require(__DIR__ . '/../vendor/yiisoft/yii2/Yii.php');
 
 $configs = array(
     'taskNum' => 1,
@@ -36,22 +33,61 @@ $configs = array(
     'urlFilter' => [
         '/http:\/\/www.qiushibaike.com\/article\/(\d*)/'
     ],
+    'as parseData' => [
+        'class' => 'tsingsun\spider\parser\Parser',
+        'contentUrlFilter' => "#http://www.qiushibaike.com/article/\d+#",
+        'fields' => [
+            'article_title' => [
+                'selector' => "//*[@id='single-next-link']//div[contains(@class,'content')]/text()[1]",
+                'required' => true,
+            ],
+            'article_author' => [
+                'selector' => "//div[contains(@class,'author')]//h2",
+                'required' => true,
+
+            ],
+            'article_headimg' => [
+                'selector' => "//div[contains(@class,'author')]//a[1]",
+                'required' => true,
+
+            ],
+            'article_content' => [
+                'selector' => "//*[@id='single-next-link']//div[contains(@class,'content')]",
+                'required' => true,
+            ],
+            'article_publish_time' => [
+                'selector' => "//div[contains(@class,'author')]//h2",
+                'required' => true,
+            ],
+            'url' => [
+                'default' => "url",                
+                'required' => true,
+
+            ],
+        ]
+    ],
+    'as exportData'=>[
+        'class'=>'tsingsun\spider\export\Export',
+        'exportType'=>'cvs',
+        'exportFile'=>'qiushibaike.cvs'
+    ],
 );
 
 $option = [
     'id' => 'qiushibaike',
     'name' => '糗事百科',
-    'basePath' => __DIR__,
-    'logFile' => __DIR__ . '/qiushi.log',
+    'basePath' => __DIR__,    
     'daemonize' => true,
     'components' => [
         'spider' => $configs,
-        'queue' => [
-            'class' => 'tsingsun\spider\queue\RedisQueue',
-            'name' => 'qiushi',
-            'host' => 'localhost',
+        'redis' => [
+            'class' => 'yii\redis\Connection',
+            'hostname' => 'localhost',
             'port' => 6379,
             'database' => 0,
+        ],
+        'queue' => [
+            'name' => 'qiushi',
         ],
         'client' => [
             'timeout' => 2,
@@ -59,8 +95,9 @@ $option = [
     ],
 ];
 
-$app = new \tsingsun\spider\Application($option);
-$app->run();
+$hotApp = \tsingsun\spider\SpiderCreator::create($option);
+$hotApp->run();
+
 ```
 在命令行中执行
 ```
@@ -68,6 +105,15 @@ $ php start.php
 ```
 接下来就可以看到抓取的日志了。
 
-## 事件
-本个爬虫框架通过事件来响应爬虫的各过程
+## 技术点
+- 使用[yii 框架](http://www.yiichina.com/doc/guide/2.0),使用者只需要知道如何配置组件即可
+- [dom-crawler](http://symfony.com/doc/current/components/dom_crawler.html) 页面分析,支持xpath,css选择器
+- goutte 用于封装网页请求,结合dom-crawler使用
+- guzzle\client http请求客户端
+- beanbun 参考了该框架对workerman的使用与redisQueue的实现
+
+## 具体介绍
+[使用说明](./docs/intro.md)
+
+
 

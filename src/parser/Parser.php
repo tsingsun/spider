@@ -9,6 +9,7 @@
 namespace tsingsun\spider\parser;
 
 
+use function GuzzleHttp\Psr7\str;
 use Symfony\Component\DomCrawler\Crawler;
 use tsingsun\spider\Spider;
 use yii\base\Behavior;
@@ -39,7 +40,9 @@ class Parser extends Behavior
     public $data;
     //内容页规则
     public $contentUrlFilter;
-    /** @var Crawler */
+    /**
+     * @var Crawler
+     */
     private $crawler;
 
     public function events()
@@ -58,8 +61,7 @@ class Parser extends Behavior
         /** @var Spider $spider */
         $spider = $event->sender;
         if(preg_match($this->contentUrlFilter,$spider->current->url)){
-            $this->crawler = new Crawler();
-            $this->crawler->addHtmlContent($spider->page);
+            $this->crawler = $spider->crawler;
             $this->data = $this->getData($this->fields);
         }
     }
@@ -70,7 +72,6 @@ class Parser extends Behavior
     public function onAfterDiscover($event)
     {
         $this->data = null;
-        $this->crawler = null;
     }
 
     public function getData($fields)
@@ -96,17 +97,29 @@ class Parser extends Behavior
 
             if (isset($field['selector'])) {
                 $selectorType = $field['selectorType'] ?? 'xpath';
-                if ($selectorType == 'xpath') {
-                    $subCrawler = $this->crawler->filterXPath($field['selector']);
-                } else {
-                    $subCrawler = $this->crawler->filter($field['selector']);
+                switch ($selectorType){
+                    case 'regex':
+                        $subCrawler = $this->regexSelect($this->crawler->html(),$field['selector']);
+                        break;
+                    case 'css':
+                        $subCrawler = $this->crawler->filter($field['selector']);
+                        break;
+                    default:
+                        $subCrawler = $this->crawler->filterXPath($field['selector']);
+                        break;
+
                 }
+
                 if (isset($field['callback'])) {
                     $data[$key] = call_user_func($field['callback'], $subCrawler);
                 } else {
-                    $value = $subCrawler->each(function (Crawler $node,$i){
-                          return $node->text();
-                    });
+                    if($subCrawler instanceof Crawler){
+                        $value = $subCrawler->each(function (Crawler $node,$i){
+                            return $node->text();
+                        });
+                    } else{
+                        $value = !is_string($subCrawler) ? $subCrawler : [$subCrawler];
+                    }
                     if($repeated){
                         $data[$key] = $value;
                     }else{
@@ -142,5 +155,46 @@ class Parser extends Behavior
                 break;
         }
         return $value;
+    }
+
+    /**
+     * 正则选择器
+     *
+     * @param mixed $html
+     * @param mixed $selector
+     * @param $remove
+     * @return mixed
+     */
+    private function regexSelect($html, $selector, $remove = true)
+    {
+        if(@preg_match_all($selector, $html, $out) === false) {
+            \Yii::error("the selector in the regex(\"{$selector}\") syntax errors");
+            return null;
+        }
+        $count = count($out);
+        $result = [];
+        // 一个都没有匹配到
+        if ($count == 0) {
+            return null;
+        }
+        // 只匹配一个，就是只有一个 ()
+        elseif ($count == 2) {
+            // 删除的话取匹配到的所有内容
+            if ($remove) {
+                $result = $out[0];
+            } else {
+                $result = $out[1];
+            }
+        } else {
+            for ($i = 1; $i < $count; $i++) {
+                // 如果只有一个元素，就直接返回好了
+                $result[] = count($out[$i]) > 1 ? $out[$i] : $out[$i][0];
+            }
+        }
+        if (empty($result)) {
+            return null;
+        }
+
+        return count($result) > 1 ? $result : $result[0];
     }
 }

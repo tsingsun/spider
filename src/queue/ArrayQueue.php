@@ -58,14 +58,14 @@ class ArrayQueue extends Component implements QueueInterface
             return;
         }
 
-        $queue = json_encode($requestItem);
+//        $queue = json_encode($requestItem);
 
-        array_push($this->globalData[$this->key],$queue);
+        array_push($this->globalData[$this->key],$requestItem);
     }
 
     public function queued($queue)
     {
-        array_push($this->globalData[$this->queuedKey], json_encode($queue));
+        array_push($this->globalData[$this->queuedKey], $queue->url);
     }
 
     public function next()
@@ -79,7 +79,7 @@ class ArrayQueue extends Component implements QueueInterface
         if ($this->isQueued($queue)) {
             return $this->next();
         } elseif($queue) {
-            return new RequestItem(json_decode($queue,true));
+            return $queue;
         }
         return null;
     }
@@ -96,7 +96,7 @@ class ArrayQueue extends Component implements QueueInterface
 
     public function isQueued($requestItem)
     {
-        return in_array(json_encode($requestItem), $this->globalData[$this->queuedKey]);
+        return in_array($requestItem->url, $this->globalData[$this->queuedKey]);
     }
 
     public function clean()

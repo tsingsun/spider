@@ -58,11 +58,10 @@ class Workerman
 
     public function onWorkerStop($worker)
     {
+        Timer::delAll();
         /** @var Spider $spider */
         $spider = \Yii::$app->getSpider();
-        Timer::delAll();
         $spider->trigger(Spider::EVENT_WORKER_STOP);
         \Yii::getLogger()->flush(true);
-        exit;
     }
 }

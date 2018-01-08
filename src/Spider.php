@@ -9,7 +9,9 @@
 namespace tsingsun\spider;
 
 
+use Goutte\Client;
 use GuzzleHttp\Psr7\Stream;
+use Symfony\Component\DomCrawler\Crawler;
 use tsingsun\spider\event\SpiderEvent;
 use tsingsun\spider\exception\SpiderException;
 use tsingsun\spider\helper\Console;
@@ -46,7 +48,7 @@ class Spider extends Component
     public $taskNum = 1;
     //url过滤规则
     public $urlFilter = [];
-    public $interval = 5;
+    public $interval = 1;
     public $timeout = 30;
     public $userAgent = 'pc';
     /**
@@ -59,9 +61,9 @@ class Spider extends Component
      */
     public $current;
     /**
-     * @var string | Stream
+     * @var Crawler
      */
-    public $page = '';
+    public $crawler;
     /**
      * @var Worker
      */
@@ -102,6 +104,7 @@ class Spider extends Component
 
     /**
      * @param Event $event
+     * @internal
      */
     public function onStartWorker($event)
     {
@@ -183,9 +186,13 @@ class Spider extends Component
         }
 
         $this->current = null;
-        $this->page = '';
+        $this->crawler = null;
     }
 
+    /**
+     * @param $worker
+     * @internal
+     */
     public function onWorkerStop($worker)
     {
 
@@ -194,6 +201,7 @@ class Spider extends Component
     /**
      * @param SpiderEvent $event
      * @throws \Exception
+     * @internal
      */
     public function onBeforeDownloadPage($event)
     {
@@ -230,32 +238,39 @@ class Spider extends Component
             return;
         }
         $this->current->options = $options;
+        if($options['method'] ?? false){
+            $this->current->method = $options['method'];
+        }
         if (!isset($this->current->options['headers']['User-Agent'])) {
             $this->current->options['headers']['User-Agent'] = Util::randUserAgent($this->userAgent);
         }
+
     }
 
 
     /**
-     * @param Event $event
+     * @param SpiderEvent $event
      * @throws
+     * @internal
      */
     public function onDownloadPage($event)
     {
-        $response = $this->app->getClient()
-            ->request($this->current->method, $this->current->url, $this->current->options);
-        $this->page = $response->getBody();
-        if ($this->page) {
-            $worker_id = isset($this->id) ? $this->worker->id : '';
+        $guzzleClient = $this->app->getClient();
+        $client = new Client();
+        $client->setClient($guzzleClient);
+        $this->crawler = $client->request($this->current->method, $this->current->url,[],[],$this->current->options);
+        if ($this->crawler) {
+            $worker_id = $this->worker->id;
             Console::stdout("worker {$worker_id} download {$this->current->url} success.\n");
         } else {
-            throw new SpiderException("the {$this->url} return empty body");
+            throw new SpiderException("the {$this->current->url} return empty body");
         }
     }
 
     /**
      * 下载页面后，可以在此进行解析数据
-     * @param Event $event
+     * @param SpiderEvent $event
+     * @internal
      */
     public function onAfterDownloadPage($event)
     {
@@ -263,7 +278,8 @@ class Spider extends Component
     }
 
     /**
-     * @param Event $event ;
+     * @param SpiderEvent $event ;
+     * @internal
      */
     public function onDiscoverUrl($event)
     {
@@ -272,8 +288,10 @@ class Spider extends Component
             $event->handled = true;
             return;
         }
-
-        $urls = Util::getUrlByHtml($this->page, $this->current->url);
+//        $urls = $this->crawler->filterXPath('//a[@href]')->each(function ($node){
+//            return $node->text();
+//        });
+        $urls = Util::getUrlByHtml($this->crawler->html(), $this->current->url);
 
         if ($countUrlFilter > 0) {
             foreach ($urls as $url) {
@@ -291,7 +309,8 @@ class Spider extends Component
     }
 
     /**
-     * @param Event $event
+     * @param SpiderEvent $event
+     * @internal
      */
     public function onAfterDiscover($event)
     {

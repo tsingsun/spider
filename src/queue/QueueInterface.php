@@ -9,7 +9,6 @@ interface QueueInterface
     /**
      * 加入待处理队列
      * @param RequestItem $requestItem
-     * @return mixed
      */
     public function add($requestItem);
 
